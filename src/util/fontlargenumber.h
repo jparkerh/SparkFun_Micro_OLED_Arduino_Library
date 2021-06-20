@@ -25,7 +25,7 @@ https://github.com/emil01/SparkFun_Micro_OLED_Arduino_Library/
 #ifndef FONTLARGENUMBER_H
 #define FONTLARGENUMBER_H
 
-#if defined(ARDUINO_ARCH_MBED)
+#if defined(ARDUINO_ARCH_MBED) || defined(PICO_BOARD)
 	// ARDUINO_ARCH_MBED (APOLLO3 v2) does not support or require pgmspace.h / PROGMEM
 	static const unsigned char fontlargenumber[] = {
 #elif defined(__AVR__) || defined(__arm__) || defined(__ARDUINO_ARC__)

@@ -38,19 +38,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef SFE_MICROOLED_H
 #define SFE_MICROOLED_H
 
-#include <stdio.h>
-#include <Arduino.h>
+#include "stdio.h"
+#include "TwoWire.h"
+#include "string.h"
 
-#include <Wire.h> // Needed for TwoWire - even if we are using SPI or Parallel
-#include <SPI.h> // Needed for SPIClass - even if we are using I2C or Parallel
-
-#if defined(ARDUINO_ARCH_MBED)
-	// ARDUINO_ARCH_MBED (APOLLO3 v2) does not support or require pgmspace.h / PROGMEM
-#elif defined(__AVR__) || defined(__arm__) || defined(__ARDUINO_ARC__)
-	#include <avr/pgmspace.h>
-#else
-	#include <pgmspace.h>
-#endif
+static TwoWire I2C_0 = TwoWire();
 
 #define I2C_ADDRESS_SA0_0 0b0111100
 #define I2C_ADDRESS_SA0_1 0b0111101
@@ -148,7 +140,11 @@ typedef enum COMM_MODE
 	MOLED_MODE_UNDEFINED
 } micro_oled_mode;
 
-class MicroOLED : public Print
+#define OUTPUT 1
+#define HIGH 1
+#define LOW 0
+
+class MicroOLED
 {
 public:
 	// Constructor(s)
@@ -159,13 +155,10 @@ public:
 			  uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3,
 			  uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7); // Parallel
 
-	boolean begin(void); // Needed for backward-compatibility
-	boolean begin(uint8_t deviceAddress, TwoWire &wirePort); // User-defined I2C address and TwoWire
-	boolean begin(SPIClass &spiPort); // User-defined SPIClass
+	bool begin(void); // Needed for backward-compatibility
+	bool begin(uint8_t deviceAddress, TwoWire &wirePort); // User-defined I2C address and TwoWire
 
 	virtual size_t write(uint8_t); // Virtual - for I2C _or_ SPI
-
-	void enableDebugging(Stream &debugPort = Serial); //Turn on debug printing. If user doesn't specify then Serial will be used.
 
 	// RAW LCD functions
 	void command(uint8_t c);
@@ -176,7 +169,7 @@ public:
 	// LCD Draw functions
 	void clear(uint8_t mode);
 	void clear(uint8_t mode, uint8_t c);
-	void invert(boolean inv);
+	void invert(bool inv);
 	void contrast(uint8_t contrast);
 	void display(void);
 	void setCursor(uint8_t x, uint8_t y);
@@ -222,8 +215,8 @@ public:
 	void scrollVertRight(uint8_t start, uint8_t stop, uint8_t scrollInterval = SCROLL_INTERVAL_2_FRAMES);
 	void scrollVertLeft(uint8_t start, uint8_t stop, uint8_t scrollInterval = SCROLL_INTERVAL_2_FRAMES);
 	void scrollStop(void);
-	void flipVertical(boolean flip);
-	void flipHorizontal(boolean flip);
+	void flipVertical(bool flip);
+	void flipHorizontal(bool flip);
 
 	//Control the size of the internal I2C transaction amount
 	void setI2CTransactionSize(uint8_t bufferSize);
@@ -238,7 +231,7 @@ private:
 	volatile uint8_t *wrport, *wrreg, *rdport, *rdreg;
 	uint8_t wrpinmask, rdpinmask;
 	micro_oled_mode moled_interface = MOLED_MODE_UNDEFINED;
-	byte moled_i2c_address = I2C_ADDRESS_UNDEFINED;
+	uint8_t moled_i2c_address = I2C_ADDRESS_UNDEFINED;
 	volatile uint8_t *ssport, *dcport, *ssreg, *dcreg; // use volatile because these are fixed location port address
 	uint8_t mosipinmask, sckpinmask, sspinmask, dcpinmask;
 	uint8_t foreColor, drawMode, fontWidth, fontHeight, fontType, fontStartChar, fontTotalChar, cursorX, cursorY;
@@ -246,23 +239,13 @@ private:
 	static const unsigned char *fontsPointer[];
 	void swapOLED(uint8_t *x, uint8_t *y);
 
-	//Debug
-	Stream *_debugPort;			 //The stream to send debug messages to if enabled. Usually Serial.
-	boolean _printDebug = false; //Flag to print debugging variables
-
 	void beginCommon(); // Functionality common to all begin methods
 
 	// Communication
-	void spiTransfer(byte data);
-	void spiSetup(SPIClass &spiPort = SPI);
-	void i2cSetup(uint8_t deviceAddress = I2C_ADDRESS_UNDEFINED, TwoWire &wirePort = Wire);
-	void i2cWrite(byte address, byte control, byte data);
-	boolean i2cWriteMultiple(byte address, uint8_t *dataBytes, size_t numDataBytes);
-	void parallelSetup();
-	void parallelWrite(byte data, byte dc);
+	void i2cSetup(uint8_t deviceAddress = I2C_ADDRESS_UNDEFINED, TwoWire &wirePort = I2C_0);
+	void i2cWrite(uint8_t address, uint8_t control, uint8_t data);
+	bool i2cWriteMultiple(uint8_t address, uint8_t *dataBytes, size_t numDataBytes);
 
-	TwoWire *_i2cPort;		//The generic connection to user's chosen I2C hardware
-
-	SPIClass *_spiPort;			 //The generic connection to user's chosen SPI hardware
+	TwoWire *_i2cPort;
 };
 #endif

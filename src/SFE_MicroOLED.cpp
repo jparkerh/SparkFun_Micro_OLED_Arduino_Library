@@ -33,15 +33,14 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ******************************************************************************/
-#include <Arduino.h>
-#if defined(ARDUINO_ARCH_MBED)
+#if defined(ARDUINO_ARCH_MBED) || defined(PICO_BOARD)
 	// ARDUINO_ARCH_MBED (APOLLO3 v2) does not support or require pgmspace.h / PROGMEM
 #elif defined(__AVR__) || defined(__arm__) || defined(__ARDUINO_ARC__)
 	#include <avr/pgmspace.h>
 #else
 	#include <pgmspace.h>
 #endif
-#include <SFE_MicroOLED.h>
+#include "SFE_MicroOLED.h"
 
 #ifndef _BV
 #define _BV(x) (1 << x)
@@ -219,6 +218,8 @@ MicroOLED::MicroOLED(uint8_t rst, uint8_t dc)
 		moled_i2c_address = I2C_ADDRESS_SA0_1;
 	else
 		moled_i2c_address = I2C_ADDRESS_SA0_0;
+	// moled_i2c_address = 0;
+
 	//_i2cPort will be initialized by i2cSetup
 }
 
@@ -252,15 +253,11 @@ MicroOLED::MicroOLED(uint8_t rst, uint8_t dc, uint8_t cs, uint8_t wr, uint8_t rd
 
     Setup for the chosen interface then send initialisation commands to the SSD1306 controller inside the OLED.
 */
-boolean MicroOLED::begin()
+bool MicroOLED::begin()
 {
 	// Set up the selected interface:
-	if (moled_interface == MOLED_MODE_SPI)
-		spiSetup();
-	else if (moled_interface == MOLED_MODE_I2C)
+	if (moled_interface == MOLED_MODE_I2C)
 		i2cSetup();
-	else if (moled_interface == MOLED_MODE_PARALLEL)
-		parallelSetup();
 	else //if (moled_interface == MOLED_MODE_UNDEFINED)
 		return (false);
 
@@ -268,11 +265,6 @@ boolean MicroOLED::begin()
 	// .begin instead of .begin(uint8_t deviceAddress, TwoWire &wirePort)
 	if ((moled_interface == MOLED_MODE_I2C) && (moled_i2c_address == I2C_ADDRESS_UNDEFINED))
 	{
-		if (_printDebug == true)
-		{
-			_debugPort->println(F("begin: error! deviceAddress is I2C_ADDRESS_UNDEFINED!"));
-			_debugPort->println(F("begin: Did you forget to call .begin(uint8_t deviceAddress, TwoWire &wirePort)?"));
-		}
 		return (false);
 	}
 
@@ -282,22 +274,9 @@ boolean MicroOLED::begin()
 
 /** \brief Initialisation of MicroOLED Library.
 
-    Setup IO pins for the SPI interface then send initialisation commands to the SSD1306 controller inside the OLED.
-*/
-boolean MicroOLED::begin(SPIClass &spiPort)
-{
-	// Set up the selected interface:
-	spiSetup(spiPort);
-
-	beginCommon();
-	return (true);
-}
-
-/** \brief Initialisation of MicroOLED Library.
-
     Setup IO pins for the I2C interface then send initialisation commands to the SSD1306 controller inside the OLED.
 */
-boolean MicroOLED::begin(uint8_t deviceAddress, TwoWire &wirePort)
+bool MicroOLED::begin(uint8_t deviceAddress, TwoWire &wirePort)
 {
 	// Set up the selected interface:
 	i2cSetup(deviceAddress, wirePort);
@@ -319,12 +298,12 @@ void MicroOLED::beginCommon()
 	setCursor(0, 0);
 
 	// Display reset routine
-	pinMode(rstPin, OUTPUT);	// Set RST pin as OUTPUT
-	digitalWrite(rstPin, HIGH); // Initially set RST HIGH
-	delay(5);					// VDD (3.3V) goes high at start, lets just chill for 5 ms
-	digitalWrite(rstPin, LOW);	// Bring RST low, reset the display
-	delay(10);					// wait 10ms
-	digitalWrite(rstPin, HIGH); // Set RST HIGH, bring out of reset
+	gpio_set_dir(rstPin, OUTPUT);	// Set RST pin as OUTPUT
+	gpio_put(rstPin, HIGH); // Initially set RST HIGH
+	sleep_us(5);					// VDD (3.3V) goes high at start, lets just chill for 5 ms
+	gpio_put(rstPin, LOW);	// Bring RST low, reset the display
+	sleep_us(10);					// wait 10ms
+	gpio_put(rstPin, HIGH); // Set RST HIGH, bring out of reset
 
 	// Display Init sequence for 64x48 OLED module
 	command(DISPLAYOFF); // 0xAE
@@ -365,14 +344,6 @@ void MicroOLED::beginCommon()
 	clear(ALL);			// Erase hardware memory inside the OLED controller to avoid random data in memory.
 }
 
-//Calling this function with nothing sets the debug port to Serial
-//You can also call it with other streams like Serial1, SerialUSB, etc.
-void MicroOLED::enableDebugging(Stream &debugPort)
-{
-	_debugPort = &debugPort;
-	_printDebug = true;
-}
-
 /** \brief Send the display a command byte
 
     Send a command via SPI, I2C or parallel	to SSD1306 controller.
@@ -383,22 +354,11 @@ void MicroOLED::enableDebugging(Stream &debugPort)
 void MicroOLED::command(uint8_t c)
 {
 
-	if (moled_interface == MOLED_MODE_SPI)
-	{
-		digitalWrite(dcPin, LOW);
-		;				// DC pin LOW for a command
-		spiTransfer(c); // Transfer the command byte
-	}
-	else if (moled_interface == MOLED_MODE_I2C)
+	if (moled_interface == MOLED_MODE_I2C)
 	{
 		// Write to our address, make sure it knows we're sending a
 		// command:
 		i2cWrite(moled_i2c_address, I2C_COMMAND, c);
-	}
-	else if (moled_interface == MOLED_MODE_PARALLEL)
-	{
-		// Write the byte to our parallel interface. Set DC LOW.
-		parallelWrite(c, LOW);
 	}
 }
 
@@ -412,22 +372,11 @@ void MicroOLED::command(uint8_t c)
 void MicroOLED::data(uint8_t c)
 {
 
-	if (moled_interface == MOLED_MODE_SPI)
-	{
-		digitalWrite(dcPin, HIGH); // DC HIGH for a data byte
-
-		spiTransfer(c); // Transfer the data byte
-	}
-	else if (moled_interface == MOLED_MODE_I2C)
+	if (moled_interface == MOLED_MODE_I2C)
 	{
 		// Write to our address, make sure it knows we're sending a
 		// data byte:
 		i2cWrite(moled_i2c_address, I2C_DATA, c);
-	}
-	else if (moled_interface == MOLED_MODE_PARALLEL)
-	{
-		// Write the byte to our parallel interface. Set DC HIGH.
-		parallelWrite(c, HIGH);
 	}
 }
 
@@ -527,7 +476,7 @@ void MicroOLED::clear(uint8_t mode, uint8_t c)
 
     The WHITE color of the display will turn to BLACK and the BLACK will turn to WHITE.
 */
-void MicroOLED::invert(boolean inv)
+void MicroOLED::invert(bool inv)
 {
 	if (inv)
 		command(INVERTDISPLAY);
@@ -657,34 +606,18 @@ Draw line using color and mode from x0,y0 to x1,y1 of the screen buffer.
 */
 void MicroOLED::line(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t color, uint8_t mode)
 {
-	if (_printDebug == true)
-	{
-		_debugPort->print(F("line: line coords: ("));
-		_debugPort->print(x0);
-		_debugPort->print(F(","));
-		_debugPort->print(y0);
-		_debugPort->print(F(") ("));
-		_debugPort->print(x1);
-		_debugPort->print(F(","));
-		_debugPort->print(y1);
-		_debugPort->println(F(")"));
-	}
 
-	uint8_t steep = abs(y1 - y0) > abs(x1 - x0);
+	uint8_t steep = (y1 - y0) > (x1 - x0);
 	if (steep)
 	{
 		swapOLED(&x0, &y0);
 		swapOLED(&x1, &y1);
-		if (_printDebug == true)
-			_debugPort->println(F("line: line is steep"));
-}
+	}
 
 	if (x0 > x1)
 	{
 		swapOLED(&x0, &x1);
 		swapOLED(&y0, &y1);
-		if (_printDebug == true)
-			_debugPort->println(F("line: x0 > x1"));
 	}
 
 	// if (_printDebug == true)
@@ -702,32 +635,16 @@ void MicroOLED::line(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t col
 
 	uint8_t dx, dy;
 	dx = x1 - x0;
-	dy = abs(y1 - y0);
-
-	if (_printDebug == true)
-	{
-		_debugPort->print(F("line: dx: "));
-		_debugPort->print(dx);
-		_debugPort->print(F("  dy: "));
-		_debugPort->println(dy);
-	}
+	dy = (y1 - y0);
 
 	if ((dx == 0) && (dy == 0))
 	{
-		if (_printDebug == true)
-			_debugPort->print(F("line: zero length!"));
 		pixel(x0, y0, color, mode);
 		return;
 	}
 
 	int8_t err = dx / 2;
 	int8_t ystep;
-
-	if (_printDebug == true)
-	{
-		_debugPort->print(F("line: err: "));
-		_debugPort->println(err);
-	}
 
 	if (y0 < y1)
 	{
@@ -738,37 +655,15 @@ void MicroOLED::line(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t col
 		ystep = -1;
 	}
 
-	if (_printDebug == true)
-	{
-		_debugPort->print(F("line: ystep: "));
-		_debugPort->println(ystep);
-	}
-
 	for (; x0 <= x1; x0++)
 	{
 		if (steep)
 		{
 			pixel(y0, x0, color, mode);
-			if (_printDebug == true)
-			{
-				_debugPort->print(F("line: steep pixel: ("));
-				_debugPort->print(y0);
-				_debugPort->print(F(","));
-				_debugPort->print(x0);
-				_debugPort->println(F(")"));
-			}
 		}
 		else
 		{
 			pixel(x0, y0, color, mode);
-			if (_printDebug == true)
-			{
-				_debugPort->print(F("line: pixel: ("));
-				_debugPort->print(x0);
-				_debugPort->print(F(","));
-				_debugPort->print(y0);
-				_debugPort->println(F(")"));
-			}
 		}
 		err -= dy;
 		if (err < 0)
@@ -1065,11 +960,11 @@ uint8_t MicroOLED::setFontType(uint8_t type)
         return false;
 
 	fontType = type;
-	fontWidth = pgm_read_byte(fontsPointer[fontType] + 0);
-	fontHeight = pgm_read_byte(fontsPointer[fontType] + 1);
-	fontStartChar = pgm_read_byte(fontsPointer[fontType] + 2);
-	fontTotalChar = pgm_read_byte(fontsPointer[fontType] + 3);
-	fontMapWidth = (pgm_read_byte(fontsPointer[fontType] + 4) * 100) + pgm_read_byte(fontsPointer[fontType] + 5); // two bytes values into integer 16
+	fontWidth = *(fontsPointer[fontType] + 0);
+	fontHeight = *(fontsPointer[fontType] + 1);
+	fontStartChar = *(fontsPointer[fontType] + 2);
+	fontTotalChar = *(fontsPointer[fontType] + 3);
+	fontMapWidth = (*(fontsPointer[fontType] + 4) * 100) + *(fontsPointer[fontType] + 5); // two bytes values into integer 16
 	return true;
 }
 
@@ -1130,7 +1025,7 @@ void MicroOLED::drawChar(uint8_t x, uint8_t y, uint8_t c, uint8_t color, uint8_t
 			if (i == fontWidth) // this is done in a weird way because for 5x7 font, there is no margin, this code add a margin after col 5
 				temp = 0;
 			else
-				temp = pgm_read_byte(fontsPointer[fontType] + FONTHEADERSIZE + (tempC * fontWidth) + i);
+				temp = *(fontsPointer[fontType] + FONTHEADERSIZE + (tempC * fontWidth) + i);
 
 			for (j = 0; j < 8; j++)
 			{ // 8 is the LCD's page height (see datasheet for explanation)
@@ -1161,7 +1056,7 @@ void MicroOLED::drawChar(uint8_t x, uint8_t y, uint8_t c, uint8_t color, uint8_t
 	{
 		for (i = 0; i < fontWidth; i++)
 		{
-			temp = pgm_read_byte(fontsPointer[fontType] + FONTHEADERSIZE + (charBitmapStartPosition + i + (row * fontMapWidth)));
+			temp = *(fontsPointer[fontType] + FONTHEADERSIZE + (charBitmapStartPosition + i + (row * fontMapWidth)));
 			for (j = 0; j < 8; j++)
 			{ // 8 is the LCD's page height (see datasheet for explanation)
 				if (temp & 0x1)
@@ -1265,7 +1160,7 @@ void MicroOLED::scrollVertLeft(uint8_t start, uint8_t stop, uint8_t scrollInterv
 
 Flip the graphics on the OLED vertically.
 */
-void MicroOLED::flipVertical(boolean flip)
+void MicroOLED::flipVertical(bool flip)
 {
 	if (flip)
 	{
@@ -1281,7 +1176,7 @@ void MicroOLED::flipVertical(boolean flip)
 
     Flip the graphics on the OLED horizontally.
 */
-void MicroOLED::flipHorizontal(boolean flip)
+void MicroOLED::flipHorizontal(bool flip)
 {
 	if (flip)
 	{

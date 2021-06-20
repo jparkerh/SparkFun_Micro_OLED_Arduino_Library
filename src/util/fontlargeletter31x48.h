@@ -20,7 +20,7 @@ https://github.com/DaAwesomeP/SparkFun_Micro_OLED_Arduino_Library/
 #ifndef FONTLARGELETTER31X48_H
 #define FONTLARGELETTER31X48_H
 
-#if defined(ARDUINO_ARCH_MBED)
+#if defined(ARDUINO_ARCH_MBED) || defined(PICO_BOARD)
 	// ARDUINO_ARCH_MBED (APOLLO3 v2) does not support or require pgmspace.h / PROGMEM
     static const unsigned char fontlargeletter31x48 [] = {
 #elif defined(__AVR__) || defined(__arm__) || defined(__ARDUINO_ARC__)
