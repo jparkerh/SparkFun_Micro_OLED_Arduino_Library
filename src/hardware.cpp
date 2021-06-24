@@ -59,8 +59,8 @@ void MicroOLED::i2cSetup(uint8_t deviceAddress, TwoWire &wirePort)
 void MicroOLED::i2cWrite(uint8_t address, uint8_t dc, uint8_t data)
 {
 	_i2cPort->beginTransmission(address);
-	_i2cPort->write(dc); // If data dc = 0, if command dc = 0x40
-	_i2cPort->write(data);
+	_i2cPort->write(dc);
+  _i2cPort->write(data); // If data dc = 0, if command dc = 0x40
 	_i2cPort->endTransmission();
 }
 
