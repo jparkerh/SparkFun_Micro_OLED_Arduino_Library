@@ -53,8 +53,8 @@ static TwoWire I2C_0 = TwoWire();
 #define BLACK 0
 #define WHITE 1
 
-#define LCDWIDTH 64
-#define LCDHEIGHT 48
+// #define LCDWIDTH 64
+// #define LCDHEIGHT 48
 #define FONTHEADERSIZE 6
 
 #define NORM 0
@@ -225,7 +225,12 @@ public:
 	//Set the max number of bytes set in a given I2C transaction
 	uint8_t i2cTransactionSize = 32; //Default to ATmega328 limit
 
+protected:
+	int LCDWIDTH = 64;
+	int LCDHEIGHT = 48;
+
 private:
+
 	uint8_t csPin, dcPin, rstPin;
 	uint8_t wrPin, rdPin, dPins[8];
 	volatile uint8_t *wrport, *wrreg, *rdport, *rdreg;
